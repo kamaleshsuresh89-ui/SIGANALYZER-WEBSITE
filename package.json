@@ -1,0 +1,27 @@
+{
+  "name": "siganalyzer-website",
+  "version": "1.0.0",
+  "description": "Official production website for SIGANALYZER — Automated IQ & WAV Signal Intelligence (Smart India Hackathon)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/dev-server.js",
+    "dev": "node scripts/dev-server.js",
+    "preview": "node scripts/dev-server.js --port 8080",
+    "sync:releases": "node scripts/sync-releases.js",
+    "build": "node scripts/sync-releases.js && npm run check",
+    "check": "node -c src/main.js src/router.js scripts/dev-server.js scripts/sync-releases.js src/data/releases.js src/data/releases-snapshot.js"
+  },
+  "keywords": [
+    "siganalyzer",
+    "signal-analysis",
+    "dsp",
+    "iq-signals",
+    "wav",
+    "rf-engineering",
+    "demodulation",
+    "smart-india-hackathon"
+  ],
+  "author": "SIGANALYZER Team",
+  "license": "UNLICENSED"
+}

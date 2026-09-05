@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Primary SEO Metadata -->
+  <title>SIGANALYZER — Automated IQ & WAV Signal Intelligence</title>
+  <meta name="description" content="Automated IQ & WAV signal analysis platform developed for Smart India Hackathon. Transform raw radio frequency captures into structured parameters, spectral insights, modulation classifications, and protocol discoveries.">
+  <meta name="keywords" content="SIGANALYZER, signal intelligence, IQ signals, WAV analysis, DSP, SDR, RTL-SDR, HackRF, modulation classification, QPSK, FSK, constellation diagram, spectrum analyzer, bitstream forensics, Smart India Hackathon">
+  <meta name="author" content="SIGANALYZER Team (Smart India Hackathon)">
+  <meta name="theme-color" content="#06080d">
+  <link rel="canonical" href="https://siganalyzer.dev/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://siganalyzer.dev/">
+  <meta property="og:title" content="SIGANALYZER — Automated IQ & WAV Signal Intelligence">
+  <meta property="og:description" content="Analyze. Decode. Understand. Automated signal analysis software platform for RF engineers and telecommunications researchers. 100% offline-first.">
+  <meta property="og:image" content="https://siganalyzer.dev/public/favicon.svg">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="SIGANALYZER — Automated IQ & WAV Signal Intelligence">
+  <meta name="twitter:description" content="Automated signal intelligence engine for IQ & WAV recordings. Developed for Smart India Hackathon.">
+  <meta name="twitter:image" content="https://siganalyzer.dev/public/favicon.svg">
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/svg+xml" href="/public/favicon.svg">
+  <link rel="alternate icon" href="/public/favicon.svg">
+
+  <!-- Preconnect to Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Design System Stylesheets -->
+  <link rel="stylesheet" href="/src/styles/variables.css">
+  <link rel="stylesheet" href="/src/styles/reset.css">
+  <link rel="stylesheet" href="/src/styles/typography.css">
+  <link rel="stylesheet" href="/src/styles/components.css">
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body class="rf-grid-bg">
+  
+  <!-- Root App Shell -->
+  <div id="app">
+    <!-- Initial fallback shell while ESM loads -->
+    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; color: #00f0ff;">
+      INITIALIZING SIGANALYZER BASE STATION...
+    </div>
+  </div>
+
+  <noscript>
+    <div style="padding: 2rem; text-align: center; color: #f8fafc; background: #06080d; min-height: 100vh; font-family: sans-serif;">
+      <h1 style="color: #00f0ff;">JavaScript Required</h1>
+      <p>SIGANALYZER's client-side DSP visualizer and navigation router require JavaScript to run in offline-first mode.</p>
+    </div>
+  </noscript>
+
+  <!-- Main ES Module Script -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+name: Sync GitHub Releases
+
+on:
+  # Triggered when SIGANALYZER repository publishes a new release
+  repository_dispatch:
+    types: [release-published]
+
+  # Allows manual 1-click trigger from GitHub Actions tab
+  workflow_dispatch:
+
+  # Periodic check every 6 hours
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # Trigger when release sync scripts are updated
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/sync-releases.js'
+      - '.github/workflows/release-sync.yml'
+
+jobs:
+  sync-releases:
+    name: Fetch & Sync GitHub Releases
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Website Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync Releases from GitHub API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: 'kamaleshsuresh89-ui/SIGANALYZER'
+        run: |
+          node scripts/sync-releases.js
+
+      - name: Check for Changes
+        id: git-check
+        run: |
+          git diff --quiet src/data/releases.json src/data/releases-snapshot.js || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit & Push Updated Releases
+        if: steps.git-check.outputs.changed == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/releases.json src/data/releases-snapshot.js
+          git commit -m "chore(releases): sync latest GitHub Releases metadata [skip ci]"
+          git push origin main
