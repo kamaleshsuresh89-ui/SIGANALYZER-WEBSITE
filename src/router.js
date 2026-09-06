@@ -34,8 +34,23 @@ const ROUTE_TITLES = {
 };
 
 export function handleRoute() {
-  const fullHash = window.location.hash || '#/';
-  const [rawPath, rawQuery] = fullHash.replace(/^#/, '').split('?');
+  let fullHash = window.location.hash;
+  let rawPath = '/';
+  let rawQuery = '';
+
+  if (fullHash && fullHash !== '#') {
+    const [hPath, hQuery] = fullHash.replace(/^#/, '').split('?');
+    rawPath = hPath;
+    rawQuery = hQuery || '';
+  } else if (window.location.pathname && window.location.pathname !== '/' && window.location.pathname !== '/index.html') {
+    rawPath = window.location.pathname;
+    rawQuery = window.location.search ? window.location.search.replace(/^\?/, '') : '';
+    fullHash = '#' + rawPath + (rawQuery ? `?${rawQuery}` : '');
+  } else {
+    fullHash = '#/';
+    rawPath = '/';
+  }
+
   const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
   const queryParams = new URLSearchParams(rawQuery || '');
 
@@ -114,8 +129,15 @@ export function handleRoute() {
 
 export function initRouter() {
   window.addEventListener('hashchange', handleRoute);
-  // Default route if empty
-  if (!window.location.hash) {
+  window.addEventListener('popstate', handleRoute);
+
+  // Sync route if accessed directly via pathname or empty hash
+  if (!window.location.hash || window.location.hash === '#') {
+    const pathname = window.location.pathname;
+    if (pathname && pathname !== '/' && pathname !== '/index.html') {
+      window.location.hash = '#' + pathname + (window.location.search || '');
+      return;
+    }
     window.location.hash = '#/';
   }
   handleRoute();

@@ -7,10 +7,10 @@
   "scripts": {
     "start": "node scripts/dev-server.js",
     "dev": "node scripts/dev-server.js",
-    "preview": "node scripts/dev-server.js --port 8080",
+    "preview": "node scripts/dev-server.js --dir dist --port 8080",
     "sync:releases": "node scripts/sync-releases.js",
-    "build": "node scripts/sync-releases.js && npm run check",
-    "check": "node -c src/main.js src/router.js scripts/dev-server.js scripts/sync-releases.js src/data/releases.js src/data/releases-snapshot.js"
+    "build": "node scripts/build.js && npm run check",
+    "check": "node -c src/main.js src/router.js scripts/dev-server.js scripts/sync-releases.js scripts/build.js src/data/releases.js src/data/releases-snapshot.js"
   },
   "keywords": [
     "siganalyzer",

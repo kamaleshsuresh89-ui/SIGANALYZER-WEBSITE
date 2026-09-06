@@ -37,6 +37,11 @@ const PORT = portArgIndex !== -1 && process.argv[portArgIndex + 1]
   ? parseInt(process.argv[portArgIndex + 1], 10)
   : parseInt(process.env.PORT || '3000', 10);
 
+const dirArgIndex = process.argv.indexOf('--dir');
+const SERVE_DIR = dirArgIndex !== -1 && process.argv[dirArgIndex + 1]
+  ? path.resolve(ROOT_DIR, process.argv[dirArgIndex + 1])
+  : ROOT_DIR;
+
 const server = http.createServer((req, res) => {
   // CORS & Security headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -56,7 +61,7 @@ const server = http.createServer((req, res) => {
 
   // Prevent path traversal
   const safePath = path.normalize(decodedPath).replace(/^(\.\.[/\\])+/, '');
-  let filePath = path.join(ROOT_DIR, safePath);
+  let filePath = path.join(SERVE_DIR, safePath);
 
   // If directory, look for index.html
   if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
@@ -65,7 +70,7 @@ const server = http.createServer((req, res) => {
 
   // Fallback to index.html for root or SPA paths
   if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    const indexPath = path.join(ROOT_DIR, 'index.html');
+    const indexPath = path.join(SERVE_DIR, 'index.html');
     if (fs.existsSync(indexPath)) {
       filePath = indexPath;
     } else {
@@ -93,6 +98,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n======================================================`);
   console.log(`  SIGANALYZER Production Website Server running`);
   console.log(`  Local URL:  http://127.0.0.1:${PORT}`);
-  console.log(`  Root Dir:   ${ROOT_DIR}`);
+  console.log(`  Serve Dir:  ${SERVE_DIR}`);
   console.log(`======================================================\n`);
 });

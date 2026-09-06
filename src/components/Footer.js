@@ -73,7 +73,7 @@ export function renderFooter() {
             <ul class="footer-link-list">
               <li><a href="#/about" class="footer-link">About SIGANALYZER & SIH</a></li>
               <li><a href="#/privacy" class="footer-link">Offline-First Privacy Policy</a></li>
-              <li><a href="https://github.com/placeholder-siganalyzer" target="_blank" rel="noopener noreferrer" class="footer-link" style="display: flex; align-items: center; gap: 0.4rem;"><span>GitHub</span> <span class="badge badge-outline" style="font-size: 0.6rem;">Source</span></a></li>
+              <li><a href="https://github.com/kamaleshsuresh89-ui/SIGANALYZER" target="_blank" rel="noopener noreferrer" class="footer-link" style="display: flex; align-items: center; gap: 0.4rem;"><span>GitHub</span> <span class="badge badge-outline" style="font-size: 0.6rem;">Source</span></a></li>
               <li><a href="#/about" class="footer-link">Contact & Research Team</a></li>
               <li><span class="footer-link" style="color: var(--text-dim);">License: Open Research (Pending)</span></li>
             </ul>
