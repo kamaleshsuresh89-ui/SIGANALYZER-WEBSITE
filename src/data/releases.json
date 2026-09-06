@@ -1,86 +1,24 @@
 [
   {
-    "version": "0.9.0",
-    "tag": "v0.9.0",
-    "title": "Smart India Hackathon Technical Preview",
-    "releaseDate": "2026-09-04",
-    "channel": "stable",
+    "version": "0.0.1-test",
+    "tag": "v0.0.1-test",
+    "title": "SIGANALYZER v0.0.1 Automation Test",
+    "releaseDate": "2026-09-06",
+    "channel": "beta",
     "status": "coming-soon",
-    "description": "Desktop technical preview of the automated IQ & WAV signal analysis engine for Windows, macOS, and Linux. Features offline-first DSP, parameter extraction, and QPSK/FSK modulation classification.",
+    "description": "Automation test release.",
     "whatsNew": [
-      "Automatic container format detection for .iq (complex float32/int16) and .wav captures.",
-      "Comprehensive parameter extraction: RMS, PAPR, Peak Frequency, Occupied Bandwidth, and Noise Floor.",
-      "Scientific explainability framework (Result + Confidence + Evidence + Method).",
-      "Real-time DSP visualization engine for FFT spectrum, waterfall, and I/Q constellation.",
-      "100% offline-first architecture: zero telemetry, no mandatory cloud sync."
+      "Automated IQ & WAV signal analysis engine update.",
+      "Performance enhancements and stability improvements."
     ],
-    "releaseNotes": "### SIGANALYZER v0.9.0 Technical Preview (SIH Milestone)\n\n#### Overview\nInitial desktop preview build developed for Smart India Hackathon. Designed to demonstrate automated RF signal characterization, parameter extraction, and modulation classification directly on host hardware.\n\n#### Supported Desktop Operating Systems\n- Microsoft Windows 10 & 11 (x64, ARM64)\n- Apple macOS 12.0+ (Universal: Apple Silicon & Intel)\n- Linux (x86_64, aarch64 glibc 2.31+)\n\n#### Key Capabilities\n- Zero-copy streaming ingestion of multi-gigabyte IQ recordings.\n- Welch Power Spectral Density and 2D waterfall spectrogram cascade.\n- Cyclostationary feature detection for symbol rate recovery.\n- Tamper-evident local forensic reporting (HTML / PDF export).",
-    "htmlUrl": "https://github.com/kamaleshsuresh89-ui/SIGANALYZER/releases/tag/v0.9.0",
+    "releaseNotes": "Automation test release.\r\n\r\nThis is a temporary test release to verify:\r\nSIGANALYZER → GitHub Release → Website Sync → Vercel Deployment.",
+    "htmlUrl": "https://github.com/kamaleshsuresh89-ui/SIGANALYZER/releases/tag/v0.0.1-test",
     "supportedPlatforms": [
       "windows",
       "macos",
       "linux"
     ],
-    "artifacts": [
-      {
-        "platform": "windows",
-        "architecture": "x64",
-        "format": ".exe installer",
-        "fileName": "siganalyzer-v0.9.0-windows-x64-setup.exe",
-        "fileSize": null,
-        "downloadUrl": null,
-        "checksum": null,
-        "checksumAlgorithm": "SHA-256",
-        "available": false
-      },
-      {
-        "platform": "windows",
-        "architecture": "ARM64",
-        "format": ".zip portable",
-        "fileName": "siganalyzer-v0.9.0-windows-arm64.zip",
-        "fileSize": null,
-        "downloadUrl": null,
-        "checksum": null,
-        "checksumAlgorithm": "SHA-256",
-        "available": false
-      },
-      {
-        "platform": "macos",
-        "architecture": "Universal (Apple Silicon & Intel)",
-        "format": ".dmg",
-        "fileName": "siganalyzer-v0.9.0-macos-universal.dmg",
-        "fileSize": null,
-        "downloadUrl": null,
-        "checksum": null,
-        "checksumAlgorithm": "SHA-256",
-        "available": false
-      },
-      {
-        "platform": "linux",
-        "architecture": "x86_64",
-        "format": ".AppImage",
-        "fileName": "siganalyzer-v0.9.0-linux-x86_64.AppImage",
-        "fileSize": null,
-        "downloadUrl": null,
-        "checksum": null,
-        "checksumAlgorithm": "SHA-256",
-        "available": false
-      },
-      {
-        "platform": "linux",
-        "architecture": "x86_64",
-        "format": ".deb package",
-        "fileName": "siganalyzer-v0.9.0-linux-amd64.deb",
-        "fileSize": null,
-        "downloadUrl": null,
-        "checksum": null,
-        "checksumAlgorithm": "SHA-256",
-        "available": false
-      }
-    ],
-    "knownIssues": [
-      "Custom proprietary framing de-interleaving is currently in planned development.",
-      "Direct USB SDR streaming hardware capture is in progress; file-based ingestion is active."
-    ]
+    "artifacts": [],
+    "knownIssues": []
   }
 ]
