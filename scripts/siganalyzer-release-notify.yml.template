@@ -1,0 +1,37 @@
+# ==============================================================================
+# SIGANALYZER Software Repository Release Notification Action
+# ==============================================================================
+# Install this file in:
+# kamaleshsuresh89-ui/SIGANALYZER/.github/workflows/notify-website.yml
+#
+# PURPOSE:
+# Whenever a new release is published in the SIGANALYZER desktop software
+# repository, this workflow sends a repository_dispatch event to the
+# SIGANALYZER-WEBSITE repository, triggering automatic synchronization
+# of release metadata, binary artifact links, and SHA-256 checksums.
+#
+# SETUP:
+# 1. Create a GitHub Personal Access Token (Classic with 'repo' scope, or
+#    Fine-Grained with 'Contents: Read and write' on SIGANALYZER-WEBSITE).
+# 2. Add the token as a Secret in the SIGANALYZER software repository:
+#    Name: WEBSITE_SYNC_TOKEN
+# ==============================================================================
+
+name: Notify Website on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-website:
+    name: Dispatch Release Event to Website Repo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Website Release Synchronization
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.WEBSITE_SYNC_TOKEN }}
+          repository: kamaleshsuresh89-ui/SIGANALYZER-WEBSITE
+          event-type: release-published
+          client-payload: '{"tag": "${{ github.event.release.tag_name }}", "release_id": "${{ github.event.release.id }}"}'

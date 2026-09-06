@@ -74,6 +74,41 @@ function fetchJson(url, headers = {}) {
 }
 
 /**
+ * Make an HTTPS GET request returning raw text (for checksum files)
+ */
+function fetchText(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const defaultHeaders = {
+      'User-Agent': 'SIGANALYZER-Release-Sync/1.0',
+      ...headers
+    };
+
+    if (GITHUB_TOKEN) {
+      defaultHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
+    }
+
+    https.get(url, { headers: defaultHeaders }, (res) => {
+      // Handle redirects
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return resolve(fetchText(res.headers.location, headers));
+      }
+
+      let rawData = '';
+      res.on('data', chunk => { rawData += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve({ ok: true, text: rawData });
+        } else {
+          resolve({ ok: false, status: res.statusCode, text: '' });
+        }
+      });
+    }).on('error', err => {
+      reject(err);
+    });
+  });
+}
+
+/**
  * Format bytes into human-readable string (e.g. "84.2 MB")
  */
 function formatBytes(bytes, decimals = 1) {
@@ -90,7 +125,7 @@ function formatBytes(bytes, decimals = 1) {
  * STRICTLY Windows, macOS, Linux only.
  */
 function parsePlatform(fileName) {
-  const name = fileName.toLowerCase();
+  const name = (fileName || '').toLowerCase();
 
   // Strictly exclude mobile files
   if (name.includes('android') || name.includes('.apk') || name.includes('.ipa') || name.includes('ios')) {
@@ -100,10 +135,10 @@ function parsePlatform(fileName) {
   if (name.includes('win') || name.endsWith('.exe') || name.endsWith('.msi')) {
     return 'windows';
   }
-  if (name.includes('mac') || name.includes('darwin') || name.endsWith('.dmg') || name.includes('osx')) {
+  if (name.includes('mac') || name.includes('darwin') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.includes('osx')) {
     return 'macos';
   }
-  if (name.includes('linux') || name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.tar.gz') || name.endsWith('.rpm')) {
+  if (name.includes('linux') || name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.tar.gz') || name.endsWith('.tar.xz') || name.endsWith('.rpm')) {
     return 'linux';
   }
 
@@ -177,7 +212,7 @@ function extractChecksumsFromBody(body, assetNames) {
 /**
  * Transform a GitHub Release API object into the SIGANALYZER Release model
  */
-function transformGitHubRelease(ghRelease) {
+async function transformGitHubRelease(ghRelease) {
   const tag = ghRelease.tag_name || '';
   const version = tag.replace(/^v/i, '').trim();
   const isPrerelease = Boolean(ghRelease.prerelease);
@@ -217,6 +252,20 @@ function transformGitHubRelease(ghRelease) {
     ghRelease.body || '',
     appAssets.map(a => a.name)
   );
+
+  // If a dedicated checksum file asset exists (e.g. SHA256SUMS.txt), fetch and extract hashes
+  if (checksumAsset && checksumAsset.browser_download_url) {
+    try {
+      console.log(`[sync-releases] Fetching checksum asset: ${checksumAsset.name}`);
+      const textRes = await fetchText(checksumAsset.browser_download_url);
+      if (textRes.ok && textRes.text) {
+        const fileChecksums = extractChecksumsFromBody(textRes.text, appAssets.map(a => a.name));
+        Object.assign(bodyChecksums, fileChecksums);
+      }
+    } catch (err) {
+      console.warn(`[sync-releases] Could not fetch checksum asset (${err.message}). Continuing with body checksums.`);
+    }
+  }
 
   // Map application artifacts
   const artifacts = appAssets.map(asset => {
@@ -313,7 +362,7 @@ async function sync() {
     }
 
     // Transform into internal release schema
-    const transformed = publicReleases.map(transformGitHubRelease);
+    const transformed = await Promise.all(publicReleases.map(transformGitHubRelease));
 
     // Sort newest to oldest
     transformed.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());

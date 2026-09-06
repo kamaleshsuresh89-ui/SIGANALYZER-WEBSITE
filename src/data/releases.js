@@ -86,10 +86,10 @@ export function parsePlatform(fileName) {
   if (name.includes('win') || name.endsWith('.exe') || name.endsWith('.msi')) {
     return 'windows';
   }
-  if (name.includes('mac') || name.includes('darwin') || name.endsWith('.dmg') || name.includes('osx')) {
+  if (name.includes('mac') || name.includes('darwin') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.includes('osx')) {
     return 'macos';
   }
-  if (name.includes('linux') || name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.tar.gz') || name.endsWith('.rpm')) {
+  if (name.includes('linux') || name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.tar.gz') || name.endsWith('.tar.xz') || name.endsWith('.rpm')) {
     return 'linux';
   }
 
