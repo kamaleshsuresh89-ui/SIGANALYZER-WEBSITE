@@ -36,11 +36,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Sync Releases from GitHub API
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.WEBSITE_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: 'kamaleshsuresh89-ui/SIGANALYZER'
         run: |
           node scripts/sync-releases.js

@@ -4,14 +4,17 @@
  * 
  * Fetches releases from GitHub Releases API (kamaleshsuresh89-ui/SIGANALYZER),
  * parses desktop application artifacts (Windows, macOS, Linux),
- * extracts architectures, file sizes, and SHA-256 checksums,
- * and updates src/data/releases.json.
+ * extracts architectures, file sizes, and genuine SHA-256 checksums,
+ * and updates src/data/releases.json and src/data/releases-snapshot.js.
  * 
- * Safe & Resilient:
- * - Falls back to existing releases.json on network/API failure (zero crashes).
- * - Never includes draft releases.
- * - Never fabricates checksums or download URLs.
- * - Desktop application platforms only (strictly excludes mobile).
+ * Strict Product Constraints:
+ * - Desktop application platforms ONLY (Windows, macOS, Linux).
+ * - Strictly rejects mobile artifacts (Android, iOS, APK, IPA).
+ * - Strictly rejects source archives, debug symbols, documentation, test artifacts.
+ * - Genuine SHA-256 values ONLY (exactly 64 hex characters).
+ * - Never fabricates fake checksums, download URLs, or versions.
+ * - Never overwrites existing release data with an empty dataset on API failure.
+ * - Per-release error isolation: skips malformed releases and continues processing.
  */
 
 import fs from 'node:fs';
@@ -26,7 +29,12 @@ const OUTPUT_FILE = path.join(ROOT_DIR, 'src', 'data', 'releases.json');
 const OUTPUT_JS = path.join(ROOT_DIR, 'src', 'data', 'releases-snapshot.js');
 
 // Configuration from environment or defaults
-const REPO = process.env.GITHUB_REPOSITORY || 'kamaleshsuresh89-ui/SIGANALYZER';
+// If running inside GitHub Actions on the website repo, GITHUB_REPOSITORY defaults to the website repo.
+// We guarantee it targets the software repository kamaleshsuresh89-ui/SIGANALYZER.
+const REPO = process.env.SOFTWARE_REPOSITORY || process.env.SIGANALYZER_REPO ||
+  (process.env.GITHUB_REPOSITORY && process.env.GITHUB_REPOSITORY !== 'kamaleshsuresh89-ui/SIGANALYZER-WEBSITE'
+    ? process.env.GITHUB_REPOSITORY
+    : 'kamaleshsuresh89-ui/SIGANALYZER');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 
 console.log(`[sync-releases] Target Repository: ${REPO}`);
@@ -34,9 +42,16 @@ console.log(`[sync-releases] Output JSON: ${OUTPUT_FILE}`);
 console.log(`[sync-releases] Output JS:   ${OUTPUT_JS}`);
 
 /**
- * Make an HTTPS GET request returning a Promise
+ * Validates a genuine SHA-256 hexadecimal hash string (exactly 64 hex chars)
  */
-function fetchJson(url, headers = {}) {
+function isValidSha256(str) {
+  return typeof str === 'string' && /^[a-fA-F0-9]{64}$/.test(str.trim());
+}
+
+/**
+ * Make an HTTPS GET request returning parsed JSON
+ */
+function fetchJson(url, headers = {}, useAuth = true) {
   return new Promise((resolve, reject) => {
     const defaultHeaders = {
       'User-Agent': 'SIGANALYZER-Release-Sync/1.0',
@@ -44,19 +59,25 @@ function fetchJson(url, headers = {}) {
       ...headers
     };
 
-    if (GITHUB_TOKEN) {
+    if (useAuth && GITHUB_TOKEN) {
       defaultHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
     }
 
     https.get(url, { headers: defaultHeaders }, (res) => {
       // Handle redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return resolve(fetchJson(res.headers.location, headers));
+        return resolve(fetchJson(res.headers.location, headers, useAuth));
       }
 
       let rawData = '';
       res.on('data', chunk => { rawData += chunk; });
       res.on('end', () => {
+        // If authenticated request is rejected (e.g. repo-scoped token on cross-repo query), retry unauthenticated
+        if (useAuth && GITHUB_TOKEN && (res.statusCode === 401 || res.statusCode === 403)) {
+          console.warn(`[sync-releases] Authenticated request returned HTTP ${res.statusCode}. Falling back to unauthenticated public request...`);
+          return resolve(fetchJson(url, headers, false));
+        }
+
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
             resolve({ ok: true, data: JSON.parse(rawData) });
@@ -76,26 +97,31 @@ function fetchJson(url, headers = {}) {
 /**
  * Make an HTTPS GET request returning raw text (for checksum files)
  */
-function fetchText(url, headers = {}) {
+function fetchText(url, headers = {}, useAuth = true) {
   return new Promise((resolve, reject) => {
     const defaultHeaders = {
       'User-Agent': 'SIGANALYZER-Release-Sync/1.0',
       ...headers
     };
 
-    if (GITHUB_TOKEN) {
+    if (useAuth && GITHUB_TOKEN) {
       defaultHeaders['Authorization'] = `token ${GITHUB_TOKEN}`;
     }
 
     https.get(url, { headers: defaultHeaders }, (res) => {
-      // Handle redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return resolve(fetchText(res.headers.location, headers));
+        return resolve(fetchText(res.headers.location, headers, useAuth));
       }
 
       let rawData = '';
       res.on('data', chunk => { rawData += chunk; });
       res.on('end', () => {
+        // If authenticated request is rejected, retry unauthenticated
+        if (useAuth && GITHUB_TOKEN && (res.statusCode === 401 || res.statusCode === 403)) {
+          console.warn(`[sync-releases] Authenticated asset request returned HTTP ${res.statusCode}. Falling back to unauthenticated public request...`);
+          return resolve(fetchText(url, headers, false));
+        }
+
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve({ ok: true, text: rawData });
         } else {
@@ -121,24 +147,68 @@ function formatBytes(bytes, decimals = 1) {
 }
 
 /**
+ * Check if a file is a checksum / metadata asset rather than application binary
+ */
+function isChecksumAsset(fileName) {
+  const name = (fileName || '').toLowerCase();
+  return name.endsWith('.sha256') ||
+         name.endsWith('.sha256sum') ||
+         name.includes('sha256sums') ||
+         name.includes('checksum') ||
+         name.endsWith('.sig');
+}
+
+/**
  * Parse desktop platform from asset filename
  * STRICTLY Windows, macOS, Linux only.
  */
 function parsePlatform(fileName) {
   const name = (fileName || '').toLowerCase();
 
-  // Strictly exclude mobile files
+  // 1. Explicitly reject mobile files
   if (name.includes('android') || name.includes('.apk') || name.includes('.ipa') || name.includes('ios')) {
     return null;
   }
 
-  if (name.includes('win') || name.endsWith('.exe') || name.endsWith('.msi')) {
+  // 2. Explicitly reject checksum files, debug symbols, documentation, source archives, test artifacts
+  if (
+    isChecksumAsset(name) ||
+    name.includes('source') ||
+    name.endsWith('.src.tar.gz') ||
+    name.endsWith('.src.zip') ||
+    name.includes('symbols') ||
+    name.endsWith('.pdb') ||
+    name.endsWith('.dsym') ||
+    name.endsWith('.dbg') ||
+    name.endsWith('.pdf') ||
+    name.endsWith('.md') ||
+    name.endsWith('.txt') ||
+    name.includes('test') ||
+    name.includes('mock') ||
+    name.includes('fixture')
+  ) {
+    return null;
+  }
+
+  // 3. Match supported desktop formats ONLY
+  // Windows: .exe, .msi
+  if (name.endsWith('.exe') || name.endsWith('.msi')) {
     return 'windows';
   }
-  if (name.includes('mac') || name.includes('darwin') || name.endsWith('.dmg') || name.endsWith('.pkg') || name.includes('osx')) {
+
+  // macOS: .dmg, .pkg
+  if (name.endsWith('.dmg') || name.endsWith('.pkg')) {
     return 'macos';
   }
-  if (name.includes('linux') || name.endsWith('.appimage') || name.endsWith('.deb') || name.endsWith('.tar.gz') || name.endsWith('.tar.xz') || name.endsWith('.rpm')) {
+
+  // Linux: .appimage, .deb, .rpm, .tar.gz, .tar.xz
+  if (
+    name.endsWith('.appimage') ||
+    name.endsWith('.deb') ||
+    name.endsWith('.rpm') ||
+    name.endsWith('.tar.gz') ||
+    name.endsWith('.tar.xz')
+  ) {
     return 'linux';
   }
 
@@ -149,23 +219,23 @@ function parsePlatform(fileName) {
  * Infer CPU architecture from filename
  */
 function parseArchitecture(fileName, platform) {
-  const name = fileName.toLowerCase();
+  const name = (fileName || '').toLowerCase();
 
   if (platform === 'macos') {
-    if (name.includes('arm64') || name.includes('m1') || name.includes('m2') || name.includes('apple-silicon')) {
-      return 'Apple Silicon (arm64)';
+    if (name.includes('arm64') || name.includes('m1') || name.includes('m2') || name.includes('m3') || name.includes('apple-silicon')) {
+      return 'arm64 / Apple Silicon';
     }
     if (name.includes('intel') || name.includes('x86_64') || name.includes('x64')) {
-      return 'Intel (x86_64)';
+      return 'x86_64 / Intel';
     }
-    return 'Universal (Apple Silicon & Intel)';
+    return 'Universal';
   }
 
   if (platform === 'windows') {
     if (name.includes('arm64') || name.includes('aarch64')) {
-      return 'ARM64';
+      return 'arm64';
     }
-    if (name.includes('x64') || name.includes('win64') || name.includes('x86_64') || name.includes('64bit')) {
+    if (name.includes('x64') || name.includes('win64') || name.includes('x86_64') || name.includes('64bit') || name.includes('amd64')) {
       return 'x64';
     }
     return 'x64';
@@ -173,34 +243,36 @@ function parseArchitecture(fileName, platform) {
 
   if (platform === 'linux') {
     if (name.includes('arm64') || name.includes('aarch64')) {
-      return 'ARM64 (aarch64)';
+      return 'arm64 / aarch64';
     }
     if (name.includes('x86_64') || name.includes('amd64') || name.includes('x64')) {
-      return 'x64 (x86_64)';
+      return 'x86_64 / x64';
     }
-    return 'x64';
+    return 'x86_64 / x64';
   }
 
   return 'Architecture information unavailable';
 }
 
 /**
- * Extract SHA-256 checksums from release body markdown
+ * Extract SHA-256 checksums from text (e.g. SHA256SUMS.txt or markdown body)
  */
-function extractChecksumsFromBody(body, assetNames) {
+function extractChecksumsFromText(text, assetNames) {
   const checksumMap = {};
-  if (!body) return checksumMap;
+  if (!text) return checksumMap;
 
-  // Regex matching SHA-256 64-hex strings
-  const hashRegex = /\b([a-fA-F0-9]{64})\b/g;
-  const lines = body.split('\n');
+  const lines = text.split('\n');
+  const hashRegex = /\b([a-fA-F0-9]{64})\b/;
 
   for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
     for (const name of assetNames) {
-      if (line.includes(name)) {
-        const matches = line.match(hashRegex);
-        if (matches && matches[0]) {
-          checksumMap[name] = matches[0].toLowerCase();
+      if (trimmed.includes(name)) {
+        const match = trimmed.match(hashRegex);
+        if (match && isValidSha256(match[1])) {
+          checksumMap[name] = match[1].toLowerCase();
         }
       }
     }
@@ -213,14 +285,15 @@ function extractChecksumsFromBody(body, assetNames) {
  * Transform a GitHub Release API object into the SIGANALYZER Release model
  */
 async function transformGitHubRelease(ghRelease) {
-  const tag = ghRelease.tag_name || '';
+  const tag = (ghRelease.tag_name || '').trim();
   const version = tag.replace(/^v/i, '').trim();
   const isPrerelease = Boolean(ghRelease.prerelease);
-  const nameLower = (ghRelease.name || '').toLowerCase() + tag.toLowerCase();
+  const title = ghRelease.name || `SIGANALYZER v${version}`;
+  const nameLower = (title + ' ' + tag).toLowerCase();
 
   // Channel classification
   let channel = 'stable';
-  if (isPrerelease) {
+  if (isPrerelease || nameLower.includes('-beta') || nameLower.includes('beta') || nameLower.includes('-rc') || nameLower.includes('rc.')) {
     channel = 'beta';
   }
   if (nameLower.includes('nightly') || nameLower.includes('dev')) {
@@ -231,14 +304,13 @@ async function transformGitHubRelease(ghRelease) {
   const releaseDate = (ghRelease.published_at || ghRelease.created_at || new Date().toISOString()).split('T')[0];
 
   // Separate application assets from checksum metadata files
-  const rawAssets = ghRelease.assets || [];
+  const rawAssets = Array.isArray(ghRelease.assets) ? ghRelease.assets : [];
   const appAssets = [];
-  let checksumAsset = null;
+  const checksumAssets = [];
 
   for (const asset of rawAssets) {
-    const aName = asset.name.toLowerCase();
-    if (aName.includes('sha256') || aName.includes('checksum') || aName.endsWith('.sig')) {
-      checksumAsset = asset;
+    if (isChecksumAsset(asset.name)) {
+      checksumAssets.push(asset);
     } else {
       const plat = parsePlatform(asset.name);
       if (plat) {
@@ -247,23 +319,36 @@ async function transformGitHubRelease(ghRelease) {
     }
   }
 
-  // Extract checksums from body
-  const bodyChecksums = extractChecksumsFromBody(
+  // Extract checksums from markdown body
+  const bodyChecksums = extractChecksumsFromText(
     ghRelease.body || '',
     appAssets.map(a => a.name)
   );
 
-  // If a dedicated checksum file asset exists (e.g. SHA256SUMS.txt), fetch and extract hashes
-  if (checksumAsset && checksumAsset.browser_download_url) {
-    try {
-      console.log(`[sync-releases] Fetching checksum asset: ${checksumAsset.name}`);
-      const textRes = await fetchText(checksumAsset.browser_download_url);
-      if (textRes.ok && textRes.text) {
-        const fileChecksums = extractChecksumsFromBody(textRes.text, appAssets.map(a => a.name));
-        Object.assign(bodyChecksums, fileChecksums);
+  // If dedicated checksum file assets exist (e.g. SHA256SUMS.txt, foo.sha256), fetch and extract hashes
+  for (const cAsset of checksumAssets) {
+    if (cAsset && cAsset.browser_download_url) {
+      try {
+        console.log(`[sync-releases] Fetching checksum asset: ${cAsset.name}`);
+        const textRes = await fetchText(cAsset.browser_download_url);
+        if (textRes.ok && textRes.text) {
+          // 1. Line-by-line matching
+          const fileChecksums = extractChecksumsFromText(textRes.text, appAssets.map(a => a.name));
+          Object.assign(bodyChecksums, fileChecksums);
+
+          // 2. Individual direct file hash (e.g. package.exe.sha256 containing just the hash)
+          const baseTarget = cAsset.name.replace(/\.sha256$/i, '').replace(/\.sha256sum$/i, '');
+          const targetAsset = appAssets.find(a => a.name.toLowerCase() === baseTarget.toLowerCase());
+          if (targetAsset) {
+            const directHash = textRes.text.trim().split(/\s+/)[0];
+            if (isValidSha256(directHash)) {
+              bodyChecksums[targetAsset.name] = directHash.toLowerCase();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[sync-releases] Could not fetch checksum asset ${cAsset.name} (${err.message}). Continuing.`);
       }
-    } catch (err) {
-      console.warn(`[sync-releases] Could not fetch checksum asset (${err.message}). Continuing with body checksums.`);
     }
   }
 
@@ -273,7 +358,8 @@ async function transformGitHubRelease(ghRelease) {
     const architecture = parseArchitecture(asset.name, platform);
     const ext = path.extname(asset.name).toLowerCase();
     const format = ext ? `${ext} package` : 'Binary package';
-    const checksum = bodyChecksums[asset.name] || null;
+    const rawChecksum = bodyChecksums[asset.name] || null;
+    const checksum = isValidSha256(rawChecksum) ? rawChecksum.toLowerCase() : null;
 
     return {
       platform,
@@ -284,12 +370,13 @@ async function transformGitHubRelease(ghRelease) {
       downloadUrl: asset.browser_download_url,
       checksum,
       checksumAlgorithm: 'SHA-256',
-      available: true
+      available: Boolean(asset.browser_download_url)
     };
   });
 
   // Determine status
-  const status = artifacts.length > 0 ? 'available' : 'coming-soon';
+  const hasUsableArtifacts = artifacts.some(a => a.available && a.downloadUrl);
+  const status = hasUsableArtifacts ? 'available' : 'coming-soon';
 
   // Supported platforms present in this release
   const supportedPlatforms = Array.from(new Set(artifacts.map(a => a.platform)));
@@ -312,7 +399,7 @@ async function transformGitHubRelease(ghRelease) {
   return {
     version,
     tag,
-    title: ghRelease.name || `SIGANALYZER v${version}`,
+    title,
     releaseDate,
     channel,
     status,
@@ -357,14 +444,29 @@ async function sync() {
     const publicReleases = ghReleases.filter(r => !r.draft);
 
     if (publicReleases.length === 0) {
-      console.log('[sync-releases] No public releases found on GitHub. Keeping default technical preview.');
+      console.log('[sync-releases] No public releases found on GitHub. Preserving existing releases snapshot.');
       return;
     }
 
-    // Transform into internal release schema
-    const transformed = await Promise.all(publicReleases.map(transformGitHubRelease));
+    // Transform into internal release schema with per-release error isolation
+    const transformed = [];
+    for (const ghRelease of publicReleases) {
+      try {
+        const rel = await transformGitHubRelease(ghRelease);
+        if (rel && rel.version) {
+          transformed.push(rel);
+        }
+      } catch (err) {
+        console.warn(`[sync-releases] Warning: Failed to parse release ${ghRelease.tag_name || ghRelease.id}: ${err.message}. Skipping.`);
+      }
+    }
 
-    // Sort newest to oldest
+    if (transformed.length === 0) {
+      console.log('[sync-releases] No valid releases could be processed. Preserving existing snapshot.');
+      return;
+    }
+
+    // Sort newest to oldest by date
     transformed.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
 
     // Write formatted JSON
